@@ -1,0 +1,98 @@
+---
+title: 'Predicting Heart Disease '
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(corrr)
+```
+reading csv files
+```{r}
+heart<-read.csv("heart.csv")
+```
+#exploring and finding data set
+```{r}
+skimr::skim(heart)
+```
+```{r}
+glimpse(heart)
+```
+
+```{r}
+heart %>% select(where(~!is.character(.x))) %>% corrr::correlate() %>% network_plot()
+```
+
+
+after watching this plot we get to know that there is relation between Age,maxhr,heartdisease,oldpeak and
+the fastingBS and cholestrol can be related and restingBP has no relation with any heart disease
+, but we have only select numeric value in this case so let start spltting data and training data
+
+
+
+#Preprocessing
+```{r}
+d_split<-initial_split(heart)
+d_train<-training(d_split)
+d_test<-testing(d_split)
+
+```
+
+```{r}
+data_recp<-recipe(HeartDisease~.,d_train) %>% 
+  step_mutate(HeartDisease=ifelse(HeartDisease==0,"NO","YES")) %>% 
+  step_dummy(all_nominal(),-all_outcomes()) %>% prep()
+  
+```
+
+```{r}
+juiced<-juice(data_recp)
+```
+
+```{r}
+bake(data_recp,d_train)
+```
+
+#algorithm to model
+```{r}
+log_heart<-logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification") %>% fit(HeartDisease~.,data=bake(data_recp,d_train))
+```
+
+```{r}
+final_model<-log_heart %>% 
+  predict(new_data=bake(data_recp,d_test)) %>% bind_cols(bake(data_recp,d_test) %>% select(HeartDisease))
+final_model
+
+```
+so the preiction is ready now we will see if model is sucessfully predicting value or not
+
+```{r}
+final_model %>% 
+  conf_mat(HeartDisease,.pred_class)
+```
+so with the help of confusion matrix we get to know that right now our model is perfprming well and les see its recall rate and precission
+```{r}
+final_model %>% metrics(HeartDisease,.pred_class) %>% select(-.estimator,) %>% filter(.metric=="accuracy")
+```
+
+```{r}
+final_model %>%
+  precision(HeartDisease,.pred_class) %>% filter(.metric=="precision") %>% select(-.estimator)
+```
+```{r}
+final_model %>% 
+  recall(HeartDisease,.pred_class)%>% filter(.metric=="recall") %>% select(-.estimator)
+```
+
+
+
+
+
+
+
